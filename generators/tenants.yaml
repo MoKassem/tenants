@@ -1,0 +1,7 @@
+apiVersion: qlik.com/v1
+kind: HelmChart
+metadata:
+  name: tenants
+chartName: tenants
+releaseName: tenants
+chartHome: ../

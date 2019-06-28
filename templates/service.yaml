@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "tenants.fullname" . }}
+  labels:
+    app: {{ template "tenants.name" . }}
+    chart: {{ template "tenants.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+  annotations:
+{{- with .Values.service.annotations }}
+{{ toYaml . | indent 4 }}
+{{- end }}
+{{- if .Values.metrics.prometheus.enabled }}
+    prometheus.io/scrape: "true"
+    prometheus.io/port: {{ default .Values.service.port .Values.metrics.prometheus.port | quote }}
+{{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.port }}
+      protocol: TCP
+      name: {{ template "tenants.name" . }}
+  selector:
+    app: {{ template "tenants.name" . }}
+    release: {{ .Release.Name }}

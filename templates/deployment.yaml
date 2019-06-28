@@ -1,0 +1,140 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: {{ template "tenants.fullname" . }}
+  labels:
+    app: {{ template "tenants.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+{{- with .Values.deployment.annotations }}
+  annotations:
+{{ toYaml . | indent 4 }}
+{{- end }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ template "tenants.name" . }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "tenants.name" . }}
+        release: {{ .Release.Name }}
+        {{ tpl ( .Values.nats.podLabel.key ) . }}: {{ .Values.nats.podLabel.value | quote }}
+      annotations:
+        checksum/config: {{ toYaml .Values.configmaps | sha256sum }}
+    spec:
+{{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml .Values.imagePullSecrets | indent 8 }}
+{{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: {{ template "tenants.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.command }}
+          command: ["{{ .Values.command }}"]
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+          env:
+          - name: BLACKLISTED_HOSTNAMES_FILE
+            value: "/etc/config/tenants/blacklistedHostnames"
+          - name: MONGO_URI
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Release.Name }}-mongoconfig
+                key: mongodb-uri
+          {{- if .Values.mongodb.uriWebIntegrations }}
+          - name: MONGO_WEB_INTEGRATIONS_URI
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Release.Name }}-mongoconfig
+                key: mongodb-uri-webintegrations
+          {{- end }}
+          - name: JWKS_ENDPOINT
+            value: {{ default (printf "http://%s-keys:8080/v1/keys/qlik.api.internal" .Release.Name ) .Values.jwks.uri | quote }}
+          - name: ENVIRONMENT
+            value: {{ .Values.environment | quote }}
+          - name: DATACENTER
+            value: {{ .Values.datacenter | quote }}
+          - name: LOG_LEVEL
+            value: {{ .Values.config.logLevel | quote }}
+          - name: KEY_ID
+            value: {{ .Values.serviceJwt.keyId | quote }}
+          - name: PRIVATE_KEY_FILE
+            value: "/run/secret/tenants/jwtPrivateKey"
+          - name: USERS_RESOURCE
+            value: {{ default (printf "http://%s-users:8080/v1" .Release.Name ) .Values.config.resources.users | quote }}
+          - name: LICENSES_RESOURCE
+            value: {{ default (printf "http://%s-licenses:9200/v1" .Release.Name ) .Values.config.resources.licenses | quote }}
+          - name: INTERNAL_TOKENS_RESOURCE
+            value: {{ default (printf "http://%s-edge-auth:8080/v1" .Release.Name ) .Values.config.resources.internalTokens | quote }}
+          - name: FEATURE_FLAGS_RESOURCE
+            value: {{ default (printf "http://%s-feature-flags:8080/v1" .Release.Name ) .Values.config.resources.featureFlags | quote }}
+          - name: ROLLBAR_ENABLED
+            value: {{ .Values.rollbar.enabled | quote }}
+          {{- if .Values.rollbar.enabled }}
+          - name: ROLLBAR_TOKEN
+            value: {{ required "A valid .Values.rollbar.token entry required!" (.Values.rollbar.token | quote) }}
+          {{- end }}
+          - name: NATS_ENABLED
+            value: {{ .Values.nats.enabled | quote }}
+          - name: NATS_URL
+            value: {{ default (printf "http://%s-nats-client:4222" .Release.Name) .Values.nats.url | quote }}
+          - name: NATS_CLUSTER_ID
+            value: {{ tpl ( .Values.nats.release) . }}-nats-streaming-cluster
+          - name: NATS_CLIENT_ID
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: NATS_TOKEN_AUTH_ENABLED
+            value: {{ .Values.nats.tokenAuth.enabled | quote }}
+          volumeMounts:
+          - name: {{ template "tenants.fullname" . }}
+            mountPath: "/etc/config/tenants"
+            readOnly: true
+          - name: {{ template "tenants.fullname" . }}-secret
+            mountPath: "/run/secret/tenants"
+            readOnly: true
+          {{- if .Values.srcPath }}
+          - mountPath: /usr/src/app
+            name: src-dir
+          {{- end }}
+{{- if .Values.global }}{{- if .Values.global.certs }}{{- if .Values.global.certs.enabled }}
+{{- include "qlik.ca-certificates.volumeMount" . | nindent 10 }}
+{{- end }}{{- end }}{{- end }}
+{{- if .Values.service.resources }}
+          resources:
+{{ toYaml .Values.service.resources | indent 12 }}
+{{- end }}
+      volumes:
+        - name: {{ template "tenants.fullname" . }}
+          configMap:
+            name: {{ template "tenants.fullname" . }}-configmap
+        - name: {{ template "tenants.fullname" . }}-secret
+          secret:
+            secretName: {{ template "tenants.fullname" . }}-secret
+      {{- if .Values.srcPath }}
+        - name: src-dir
+          hostPath:
+            # directory location on host
+            path: {{ .Values.srcPath }}
+            # this field is optional
+            type: Directory
+      {{- end }}
+{{- if .Values.global }}{{- if .Values.global.certs }}{{- if .Values.global.certs.enabled }}
+{{- include "qlik.ca-certificates.volume" . | nindent 8 }}
+{{- end }}{{- end }}{{- end }}

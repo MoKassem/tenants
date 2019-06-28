@@ -1,0 +1,195 @@
+# Default values for users.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+image:
+  ## users image
+  ## Default registry where the repository is pulled from.
+  ## `global.imageRegistry` if set override this value.
+  ##
+  registry: qliktech-docker.jfrog.io
+
+  ## users image.
+  ##
+  repository: tenants
+
+  ## users image version.
+  ## ref: https://hub.docker.com/r/qlik/users/tags/
+  ##
+  tag: 1.3.8
+
+  ## Specify a pullPolicy: 'Always' if image.tag is 'latest', else set to 'IfNotPresent'.
+  ## ref: https://kubernetes.io/docs/user-guide/images/#pre-pulling-images
+  ##
+  # pullPolicy:
+
+## Secrets for pulling images from a private docker registry.
+##
+imagePullSecrets:
+  - name: artifactory-docker-secret
+
+## Number of replicas.
+##
+replicaCount: 1
+
+## Deployment configuration.
+## ref: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+deployment: {}
+  ## Annotations to be added to the deployment.
+  ##
+  # annotations:
+
+## Service configuration.
+## ref: https://kubernetes.io/docs/user-guide/services/
+##
+service:
+  type: ClusterIP
+  port: 8080
+  ## Annotations to be added to the service.
+  ##
+  # annotations:
+
+  ## Resource management
+  ## https://kubernetes.io/docs/tasks/configure-pod-container/assign-cpu-resource/#motivation-for-cpu-requests-and-limits
+  resources:
+    # Minimum - Steady state
+    requests:
+      cpu: 9m
+      memory: "100M"
+    # Maximum - Burst limit
+    limits:
+      memory: "150M"
+
+## Ingress configuration.
+## ref: https://kubernetes.io/docs/user-guide/ingress/
+##
+ingress:
+
+  ## Annotations to be added to the ingress.
+  ##
+  annotations: []
+  ## class provides an kubernetes.io/ingress.class override of default nginx
+  class: "nginx"
+
+  ## authURL override of default http://{.Release.Name}.{.Release.Namespace}.svc.cluster.local:8080/v1/auth
+  # authURL:
+
+## For managing tenants configuration using Helm
+## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/
+##
+configmaps:
+  ## Create the configmap resource from the following values. Set this to
+  ## false to manage these configs outside Helm.
+  ##
+  create: true
+  ## Tenants Configuration
+  ## See chart README for current values
+  ##
+  blacklistedHostnames: []
+
+## Metrics configuration
+metrics:
+  ## Prometheus configuration
+  prometheus:
+    ## prometheus.enabled determines whether the annotations for prometheus scraping are included
+    enabled: true
+
+## MongoDB configuration
+mongodb:
+  image:
+    ## Bitnami MongoDB image tag
+    ## ref: https://hub.docker.com/r/bitnami/mongodb/tags/
+    ## This value overrides the mongo image tag in chart v.4.5.0 (tag: 4.0.3-debian-9)
+    tag: 3.6.6-debian-9
+  ## Enables a local mongo chart
+  enabled: true
+  ## disable password for local dev mode
+  usePassword: false
+
+  ## Specify a custom mongo uri. Not needed when the local mongo is enabled.
+  ## Secret: {{ .Release.Name }}-mongoconfig.mongodb-uri
+  # uri:
+
+  ## name of secret to mount for mongo URI. The secret must have the `mongodb-uri` key
+  # uriSecretName:
+
+## RSA or EC Private signing key used for requesting service JWT
+##
+serviceJwt:
+  jwtPrivateKey: |
+    -----BEGIN EC PRIVATE KEY-----
+    MIGkAgEBBDCG8mXKNmto08MXv7vo9lLm59+am4jy0D0hgvBKBKZFIIna+T1VNGMz
+    qCrg9D+8RemgBwYFK4EEACKhZANiAASwZBhfPHqMRTykDMME6NLokkzeOq9bUwE6
+    VambcCpqA4Ss6PMj+XoL/pnQ3G6C4rEErx+5mwtjtRD1Cgdy1SrGMia2AxOqmSAq
+    jULjMDlhujmWdS0gN98Wwoi5IyG8D4U=
+    -----END EC PRIVATE KEY-----
+  keyId: Mf9AcMRQ-bLHduxLoE-POyozm6Ze6yfvW1Pyq3Fv1Bo
+
+## JWKS configuration
+jwks: {}
+  ## URI where the JWKS to validate JWTs is located. This overrides the default of http://{{ .Release.Name }}-keys:8080/v1/keys/qlik.api.internal
+  # uri:
+
+config:
+  ## Log level values (silly|debug|verbose|info|warn|error)
+  logLevel: verbose
+
+  resources: {}
+    ## URI where the users resource is located - overrides the default of http://{.Release.Name}-users:8080/v1
+    # users:
+    ## URI where the licenses resource is located - overrides the default of http://{.Release.Name}-licenses:9200/v1
+    # licenses:
+    ## URI where the internalToken resource is located - overrides the default of http://{.Release.Name}-edge-auth:8080/v1
+    # internalTokens:
+    ## URI where the featureFlags resource is located - overrides the default of http://{.Release.Name}-feature-flags:8080/v1
+    # featureFlags:
+
+## Deployment metadata
+environment: example
+datacenter: example
+
+## Rollbar configuration
+rollbar:
+  ## Enables a rollbar error tracking
+  enabled: false
+
+## NATS configuration
+##
+nats:
+  enabled: true
+
+  tokenAuth:
+    enabled: true
+
+  # Specify the release bringing up messaging chart
+  release: "{{ .Release.Name }}"
+
+  ## Pod label required to allow communication with NATS
+  podLabel:
+    key: "{{ .Release.Name }}-nats-client"
+    value: true
+
+  ## NATS uri
+  # uri:
+
+  config:
+    resources: {}
+      ## URI where the internalToken resource is located - overrides the default of http://{.Release.Name}-edge-auth:8080/v1
+      # internalTokens:
+
+## Messaging chart configuration
+messaging:
+  ## Set messaging.enabled to true for localdev and CI builds
+  enabled: false
+  nats:
+    enabled: true
+    replicaCount: 1
+    auth:
+      enabled: false
+    clusterAuth:
+      enabled: false
+  nats-streaming:
+    enabled: true
+    replicaCount: 3
+    auth:
+      enabled: false

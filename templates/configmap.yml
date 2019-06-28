@@ -1,0 +1,9 @@
+{{- if .Values.configmaps.create }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "tenants.fullname" . }}-configmap
+data:
+  blacklistedHostnames:
+    {{ toJson .Values.configmaps.blacklistedHostnames | quote }}
+{{- end}}
